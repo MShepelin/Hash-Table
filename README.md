@@ -1,2 +1,2 @@
-# Hash-Table
+# Hash Table
 by Shepelin Dmitriy
