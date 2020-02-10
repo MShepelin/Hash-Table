@@ -16,8 +16,8 @@ private:
 
     Hash hasher_;
 
-    list_type pairs_list_;
-    table_type pairs_iterators_;
+    list_type list_of_pairs_;
+    table_type table_;
 
     const size_type kMinSize = 16;
     const double alpha_ = 2;
@@ -26,14 +26,14 @@ private:
 
     void rehash() {
         size_ *= 2;
-        table_type temp_pairs_pointers(size_, { pairs_list_.end() });
+        table_type temp_table(size_, { list_of_pairs_.end() });
 
-        for (iterator pair_iterator = pairs_list_.begin(); pair_iterator != pairs_list_.end(); pair_iterator++) {
-            size_type key_hash = hasher_(pair_iterator->first);
-            temp_pairs_pointers[key_hash % size_].push_back(pair_iterator);
+        for (iterator list_iterator = list_of_pairs_.begin(); list_iterator != list_of_pairs_.end(); list_iterator++) {
+            size_type key_hash = hasher_(list_iterator->first);
+            temp_table[key_hash % size_].push_back(list_iterator);
         }
 
-        pairs_iterators_ = temp_pairs_pointers;
+        table_ = temp_table;
     }
 
 public:
@@ -43,8 +43,8 @@ public:
     HashMap(Hash hasher = Hash()) : hasher_(hasher) {
         size_ = kMinSize;
         elements_stored_ = 0;
-        pairs_list_ = list_type(0);
-        pairs_iterators_ = table_type(size_, { pairs_list_.end() });
+        list_of_pairs_= list_type(0);
+        table_ = table_type(size_, { list_of_pairs_.end() });
     }
 
     template<class ForwardIt>
@@ -63,36 +63,36 @@ public:
 
     iterator find(KeyType key) {
         size_type key_hash = hasher_(key);
-        for (auto pair_iterator : pairs_iterators_[key_hash % size_]) {
-            if (pair_iterator != pairs_list_.end() && pair_iterator->first == key) {
-                return pair_iterator;
+        for (auto list_iterator : table_[key_hash % size_]) {
+            if (list_iterator != list_of_pairs_.end() && list_iterator->first == key) {
+                return list_iterator;
             }
         }
          
-        return pairs_list_.end();
+        return list_of_pairs_.end();
     }
 
     const_iterator find(KeyType key) const {
         size_type key_hash = hasher_(key);
-        for (auto pair_iterator : pairs_iterators_[key_hash % size_]) {
-            if (pair_iterator != pairs_list_.end() && pair_iterator->first == key) {
-                return pair_iterator;
+        for (auto list_iterator : table_[key_hash % size_]) {
+            if (list_iterator != list_of_pairs_.end() && list_iterator->first == key) {
+                return list_iterator;
             }
         }
 
-        return pairs_list_.end();
+        return list_of_pairs_.end();
     }
 
     void insert(std::pair<KeyType, ValueType> key_and_value) {
-        if (find(key_and_value.first) != pairs_list_.end()) {
+        if (find(key_and_value.first) != list_of_pairs_.end()) {
             return;
         }
 
-        pairs_list_.push_front(key_and_value);
-        iterator pair_iterator = pairs_list_.begin();
+        list_of_pairs_.push_front(key_and_value);
+        iterator list_iterator = list_of_pairs_.begin();
         size_type key_hash = hasher_(key_and_value.first);
 
-        pairs_iterators_[key_hash % size_].push_back(pair_iterator);
+        table_[key_hash % size_].push_back(list_iterator);
         elements_stored_++;
 
         if (elements_stored_ > alpha_* size_) {
@@ -101,20 +101,20 @@ public:
     }
 
     void erase(KeyType key) {
-        iterator pair_iterator = find(key);
+        iterator list_iterator = find(key);
 
-        if (pair_iterator == pairs_list_.end()) {
+        if (list_iterator == list_of_pairs_.end()) {
             return;
         }
 
         elements_stored_--;
         size_type key_hash = hasher_(key);
 
-        auto& list_of_iters = pairs_iterators_[key_hash % size_];
-        for (auto iter_to_pair = list_of_iters.begin(); iter_to_pair != list_of_iters.end(); iter_to_pair++)
-            if ((*iter_to_pair)->first == key) {
-                list_of_iters.erase(iter_to_pair);
-                pairs_list_.erase(pair_iterator);
+        auto& list_of_iters = table_[key_hash % size_];
+        for (auto table_list_it = list_of_iters.begin(); table_list_it != list_of_iters.end(); table_list_it++)
+            if ((*table_list_it)->first == key) {
+                list_of_iters.erase(table_list_it);
+                list_of_pairs_.erase(list_iterator);
                 return;
             }
     }
@@ -124,19 +124,19 @@ public:
     }
 
     iterator begin() {
-        return pairs_list_.begin();
+        return list_of_pairs_.begin();
     }
 
     const_iterator begin() const {
-        return pairs_list_.begin();
+        return list_of_pairs_.begin();
     }
 
     iterator end() {
-        return pairs_list_.end();
+        return list_of_pairs_.end();
     }
 
     const_iterator end() const {
-        return pairs_list_.end();
+        return list_of_pairs_.end();
     }
 
     bool empty() const {
@@ -148,25 +148,39 @@ public:
     }
 
     ValueType& operator[] (KeyType key) {
-        // insert function will insert new element only if it's key isn't used in
-        // hash table for this momnet
-        insert(std::make_pair(key, ValueType()));
-        return find(key)->second;
+        iterator found_pair = find(key);
+
+        if (found_pair != list_of_pairs_.end()) {
+            return found_pair->second;
+        }
+
+        list_of_pairs_.push_front(std::make_pair(key, ValueType()));
+        iterator list_iterator = list_of_pairs_.begin();
+        size_type key_hash = hasher_(key);
+
+        table_[key_hash % size_].push_back(list_iterator);
+        elements_stored_++;
+
+        if (elements_stored_ > alpha_* size_) {
+            rehash();
+        }
+
+        return list_iterator->second;
     }
 
     const ValueType& at(KeyType key) const {
-        const_iterator pair_iterator = find(key);
-        if (pair_iterator == pairs_list_.end())
+        const_iterator list_iterator = find(key);
+        if (list_iterator == list_of_pairs_.end())
             throw std::out_of_range("");
 
-        return pair_iterator->second;
+        return list_iterator->second;
     }
 
     void clear() {
         size_ = kMinSize;
         elements_stored_ = 0;
-        pairs_list_ = list_type(0);
-        pairs_iterators_ = table_type(size_, { pairs_list_.end() });
+        list_of_pairs_= list_type(0);
+        table_ = table_type(size_, { list_of_pairs_.end() });
     }
 
     HashMap& operator= (HashMap hash_map) {
