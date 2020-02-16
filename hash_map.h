@@ -27,17 +27,17 @@ class HashMap {
 
   void rehash() {
     slots_available_ *= 2;
-    table_type temp_table(slots_available_, { list_of_pairs_.end() });
+    table_type table_copy(slots_available_, { list_of_pairs_.end() });
 
     for (iterator iterator_to_key_and_value = list_of_pairs_.begin();
       iterator_to_key_and_value != list_of_pairs_.end();
       iterator_to_key_and_value++) {
       size_type key_hash = hasher_(iterator_to_key_and_value->first);
-      temp_table[key_hash % slots_available_].push_back(
+      table_copy[key_hash % slots_available_].push_back(
         iterator_to_key_and_value);
     }
 
-    table_ = temp_table;
+    table_ = table_copy;
   }
 
  public:
